@@ -19,7 +19,7 @@ module.exports = async function handler(req, res) {
             return res.status(500).json({ error: 'System Configuration Error: Missing API Key' });
         }
 
-        const requestBody = req.body;
+        const requestBody = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
         const systemPrompt = requestBody.systemPrompt;
         let userPrompt = requestBody.userPrompt;
 
