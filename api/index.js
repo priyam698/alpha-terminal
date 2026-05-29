@@ -1,4 +1,4 @@
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
     // Enable CORS headers so your frontend can communicate securely
     res.setHeader('Access-Control-Allow-Credentials', true);
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -87,4 +87,4 @@ export default async function handler(req, res) {
     } catch (err) {
         return res.status(500).json({ error: 'Internal Gateway Routing Timeout Fault.' });
     }
-}
+};
