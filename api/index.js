@@ -1,5 +1,5 @@
 module.exports = async function handler(req, res) {
-    // Enable CORS headers so your frontend can communicate securely
+    // Enable complete CORS coverage
     res.setHeader('Access-Control-Allow-Credentials', true);
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
@@ -16,14 +16,27 @@ module.exports = async function handler(req, res) {
     try {
         const apiKey = process.env.GROQ_API_KEY;
         if (!apiKey) {
-            return res.status(500).json({ error: 'System Configuration Error: Missing API Key' });
+            return res.status(500).json({ error: 'Configuration Error: GROQ_API_KEY is missing on Vercel environment variables.' });
         }
 
-        const requestBody = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-        const systemPrompt = requestBody.systemPrompt;
-        let userPrompt = requestBody.userPrompt;
+        // BULLETPROOF PARSER: Safely reads raw text chunks, strings, or pre-parsed json objects
+        let requestBody = req.body;
+        if (typeof requestBody === 'string') {
+            try {
+                requestBody = JSON.parse(requestBody);
+            } catch (pErr) {
+                // Handle unparsed multi-part forms if necessary
+            }
+        }
 
-        if (userPrompt && userPrompt.toLowerCase().includes("stock ticker:")) {
+        if (!requestBody || (!requestBody.systemPrompt && !requestBody.userPrompt)) {
+            return res.status(400).json({ error: 'Payload Error: Incoming parameters are blank or unparsed.' });
+        }
+
+        const systemPrompt = requestBody.systemPrompt || "You are a financial terminal assistant.";
+        let userPrompt = requestBody.userPrompt || "";
+
+        if (userPrompt.toLowerCase().includes("stock ticker:")) {
             let rawTicker = userPrompt.substring(userPrompt.lastIndexOf(":") + 1).trim().toUpperCase();
             let cleanTicker = rawTicker.split(" ")[0].replace(/[^A-Z]/g, ""); 
             
@@ -50,15 +63,15 @@ module.exports = async function handler(req, res) {
                     const validCloses = indicators.close.filter(val => val != null);
                     const recentPricesText = validCloses.map(v => v.toFixed(2)).join(", ");
 
-                    userPrompt = `The user wants a technical analysis report for ticker: ${cleanTicker}.
-                    REAL-TIME LIVE AUTHORITATIVE DATA PARAMETERS:
-                    - Current Live Price: ${livePrice} ${currency}
-                    - Recent Closing Array: ${recentPricesText}
+                    userPrompt = `The user wants an analytics report for ticker: ${cleanTicker}.
+                    REAL-TIME MARKET METRICS OVERRIDE:
+                    - Current Price: ${livePrice} ${currency}
+                    - Recent Session Closings: ${recentPricesText}
                     
-                    CRITICAL MANDATE: You MUST use the live price of ${livePrice} ${currency} as your absolute mathematical base. Discard any internal historical dataset weights. Base all moving averages, option targets, and support bounds precisely around this live price scale!`;
+                    CRITICAL: Use ${livePrice} ${currency} as your exact base matrix. Calculate support bounds and moving averages tightly around this zone.`;
                 }
             } catch (fetchErr) {
-                console.log("Market connection loop fallback.");
+                console.log("Scraper loop bypass active.");
             }
         }
 
@@ -71,7 +84,7 @@ module.exports = async function handler(req, res) {
             body: JSON.stringify({
                 model: "llama-3.1-8b-instant",
                 messages: [
-                    { role: "system", content: systemPrompt + " CRITICAL: You are an execution display engine. You must strictly output statistics calculated using the real data values present in the user prompt override. Discard any internal training memory values." },
+                    { role: "system", content: systemPrompt + " Output raw statistics calculated using the data present in the prompt text. Discard internal training assumptions." },
                     { role: "user", content: userPrompt }
                 ],
                 temperature: 0.1
@@ -82,9 +95,9 @@ module.exports = async function handler(req, res) {
         if (data.choices && data.choices[0]) {
             return res.status(200).json({ content: data.choices[0].message.content });
         }
-        return res.status(500).json({ error: 'Failed to parse data fields from AI engine.' });
+        return res.status(500).json({ error: 'Failing to parse tokens from engine.' });
 
     } catch (err) {
-        return res.status(500).json({ error: 'Internal Gateway Routing Timeout Fault.' });
+        return res.status(500).json({ error: 'Gateway loop routing fault.' });
     }
 };
