@@ -1,3 +1,4 @@
+
 module.exports = async function handler(req, res) {
     // Enable complete CORS coverage
     res.setHeader('Access-Control-Allow-Credentials', true);
