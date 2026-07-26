@@ -1,0 +1,4 @@
+fyers-apiv3
+pandas
+numpy
+asyncio
