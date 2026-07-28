@@ -1,4 +1,5 @@
 import sys
+from datetime import datetime, time
 import math
 import asyncio
 import logging
@@ -169,17 +170,17 @@ async def execute_strategy(fyers):
     logger.info("🚀 High-Frequency Predatory Scanning Engine Online")
     while state["running"]:
         if not state["nifty_spot"] or state["historical_df"].empty:
-            await asyncio.sleep(0.5)
+            print(f"⚠️ WAITING FOR MATRIX: Spot={state.get('nifty_spot')} | DF Empty={state['historical_df'].empty}")
+            await asyncio.sleep(2.0)
             continue
 
         spot = state["nifty_spot"]
         current_time = datetime.now().time()
 
         # Operational Timing Thresholds
-        market_open_buffer = time(9, 22) # 9:22 AM Safety Lockout Rule
+        market_open_buffer = time(9, 22)
         max_entry_time = time(15, 10)
         square_off_time = time(15, 27)
-
         current_atm = int(round(spot / 50) * 50)
         if not state["ce_symbol"] or state.get("atm_strike") != current_atm:
             opt_symbols = get_option_symbols(fyers, spot)
