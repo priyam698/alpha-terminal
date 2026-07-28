@@ -206,12 +206,12 @@ async def execute_strategy(fyers):
             #     continue
 
             if not state["position"]:
-                # LONG CALL CONDITION: Low spikes out below 2.3 Sigma floor
-                if metrics['low'] < metrics['lower_envelope'] and metrics['smart_money_active'] and ce_ltp:
+                # LONG CALL CONDITION: Low spikes out below 0.5 Sigma floor
+                if metrics['low'] < metrics['lower_envelope'] and ce_ltp:
                     await place_order(fyers, "CE", ce_ltp, state["ce_symbol"], metrics['atr'])
 
-                # LONG PUT CONDITION: High breaks out above 2.3 Sigma ceiling
-                elif metrics['high'] > metrics['upper_envelope'] and metrics['smart_money_active'] and pe_ltp:
+                # LONG PUT CONDITION: High breaks out above 0.5 Sigma ceiling
+                elif metrics['high'] > metrics['upper_envelope'] and pe_ltp:
                     await place_order(fyers, "PE", pe_ltp, state["pe_symbol"], metrics['atr'])
 
                 # Diagnostic log (runs when neither trade condition is met)
