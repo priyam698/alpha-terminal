@@ -201,10 +201,10 @@ async def execute_strategy(fyers):
             
             # Evaluate entry filters if within valid operational execution boundaries
             if market_open_buffer <= current_time <= max_entry_time:
-                # 🛡️ THE VOLATILITY REGIME GUARD
-                if metrics['vol_momentum'] > CONFIG["VOL_MOMENTUM_THRESHOLD"]:
-                    await asyncio.sleep(0.1)
-                    continue
+                # THE VOLATILITY REGIME GUARD
+        # if metrics['vol_momentum'] > CONFIG["VOL_MOMENTUM_THRESHOLD"]:
+        #     await asyncio.sleep(0.1)
+        #     continue
 
                 # LONG CALL CONDITION: Low spikes out below 2.3 Sigma floor
                 if metrics['low'] < metrics['lower_envelope'] and metrics['smart_money_active'] and ce_ltp:
