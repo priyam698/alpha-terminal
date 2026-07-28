@@ -23,7 +23,7 @@ CONFIG = {
     ), 
     
     # Institutional Core Filters
-    "SIGMA_MULTIPLIER": 2.3,
+    "SIGMA_MULTIPLIER": 0.5,
     "VOL_MOMENTUM_THRESHOLD": 1.35,
     "LOT_SIZE": 65,                  # 2026 Mandated Nifty Lot Matrix Calibration
     "MAX_DAILY_LOSS_RUPEES": 600.0   # 4% Hard Stop protection for ₹15,000 account
