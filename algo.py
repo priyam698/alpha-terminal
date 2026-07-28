@@ -99,7 +99,7 @@ def sync_market_indicators(fyers):
             df['smart_money_active'] = df['volume'] > (df['volume_ma'] * 1.15)
             df['vol_momentum'] = df['atr'] / df['atr'].shift(5)
             
-            state["historical_df"] = df.dropna()
+            state["historical_df"] = df.bfill().ffill().reset_index(drop=True)
     except Exception as e:
         logger.error(f"❌ Indicator Matrix sync failure: {e}")
 
