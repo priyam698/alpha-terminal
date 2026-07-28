@@ -166,7 +166,7 @@ async def websocket_handler():
 # 4. PREDACTOR STRATEGY ENGINE & RISKS CIRCUIT
 # ==============================================================================
 async def execute_strategy(fyers):
-    logger.info("🛸 High-Frequency Predatory Scanning Engine Online")
+    logger.info("🚀 High-Frequency Predatory Scanning Engine Online")
     while state["running"]:
         if not state["nifty_spot"] or state["historical_df"].empty:
             await asyncio.sleep(0.5)
@@ -174,12 +174,12 @@ async def execute_strategy(fyers):
 
         spot = state["nifty_spot"]
         current_time = datetime.now().time()
-        
+
         # Operational Timing Thresholds
         market_open_buffer = time(9, 22) # 9:22 AM Safety Lockout Rule
         max_entry_time = time(15, 10)
         square_off_time = time(15, 27)
-        
+
         current_atm = int(round(spot / 50) * 50)
         if not state["ce_symbol"] or state.get("atm_strike") != current_atm:
             opt_symbols = get_option_symbols(fyers, spot)
@@ -194,66 +194,74 @@ async def execute_strategy(fyers):
         ce_ltp = state["ws_data"].get(state["ce_symbol"])
         pe_ltp = state["ws_data"].get(state["pe_symbol"])
 
-        if not state["position"]:
-            display_ce = ce_ltp if ce_ltp is not None else "Syncing Chain..."
-            display_pe = pe_ltp if pe_ltp is not None else "Syncing Chain..."
-            print(f"⚡ SCANNING | Spot: {spot:.2f} | ATM: {state['atm_strike']} | CE: {display_ce} | PE: {display_pe}      ", end="\r")
-            
-            # Evaluate entry filters if within valid operational execution boundaries
-            if market_open_buffer <= current_time <= max_entry_time:
-                # THE VOLATILITY REGIME GUARD
-        # if metrics['vol_momentum'] > CONFIG["VOL_MOMENTUM_THRESHOLD"]:
-        #     await asyncio.sleep(0.1)
-        #     continue
+        display_ce = ce_ltp if ce_ltp is not None else "Syncing Chain..."
+        display_pe = pe_ltp if pe_ltp is not None else "Syncing Chain..."
+        print(f"⚡ SCANNING | Spot: {spot:.2f} | ATM: {state['atm_strike']} | CE: {display_ce} | PE: {display_pe}        ", end="\r")
 
+        # Evaluate entry filters if within valid operational execution boundaries
+        if market_open_buffer <= current_time <= max_entry_time:
+            # THE VOLATILITY REGIME GUARD
+            # if metrics['vol_momentum'] > CONFIG["VOL_MOMENTUM_THRESHOLD"]:
+            #     await asyncio.sleep(0.1)
+            #     continue
+
+            if not state["position"]:
                 # LONG CALL CONDITION: Low spikes out below 2.3 Sigma floor
                 if metrics['low'] < metrics['lower_envelope'] and metrics['smart_money_active'] and ce_ltp:
                     await place_order(fyers, "CE", ce_ltp, state["ce_symbol"], metrics['atr'])
-                
+
                 # LONG PUT CONDITION: High breaks out above 2.3 Sigma ceiling
                 elif metrics['high'] > metrics['upper_envelope'] and metrics['smart_money_active'] and pe_ltp:
                     await place_order(fyers, "PE", pe_ltp, state["pe_symbol"], metrics['atr'])
-        else:
-            pos = state["position"]
-            current_premium = ce_ltp if pos["side"] == "CE" else pe_ltp
-            if not current_premium: continue
-            
-            # Realized execution delta calculation
-            current_pnl_pct = ((current_premium - pos["entry_price"]) / pos["entry_price"]) * 100
-            print(f"🚨 ACTIVE [{pos['side']}] | Entry: {pos['entry_price']:.2f} | Current: {current_premium:.2f} | Delta PnL: {current_pnl_pct:.2f}%      ", end="\r")
-            
-            # Asymmetric Trailing Profit Safe-locks
-            if current_pnl_pct > pos["highest_pnl"]:
-                pos["highest_pnl"] = current_pnl_pct
-                if current_pnl_pct >= 22.5: # Equates to a 1.5% spot extension equivalent
-                    # Protect cost basis by trailing stops slightly into profit territory
-                    pos["sl_premium"] = max(pos["sl_premium"], pos["entry_price"] + (0.3 * pos["entry_atr"]))
 
-            should_liquidate = False
-            exit_reason = ""
+                # Diagnostic log (runs when neither trade condition is met)
+                else:
+                    if not metrics['smart_money_active']:
+                        logger.info("⏳ Waiting for Smart Money activation...")
 
-            # Standard Volatility Band Trailing Matrix Checks
-            if pos["side"] == "CE":
-                if metrics['low'] <= pos["sl_spot"]:
-                    should_liquidate = True; exit_reason = "SPOT STOP PIERCED"
-                elif metrics['high'] >= pos["target_spot"]:
-                    should_liquidate = True; exit_reason = "SPOT TARGET ACHIEVED"
-                elif current_premium <= pos["sl_premium"]:
-                    should_liquidate = True; exit_reason = "PREMIUM STOP SLIPPAGE CUT"
+            # Active position management block
             else:
-                if metrics['high'] >= pos["sl_spot"]:
-                    should_liquidate = True; exit_reason = "SPOT STOP PIERCED"
-                elif metrics['low'] <= pos["target_spot"]:
-                    should_liquidate = True; exit_reason = "SPOT TARGET ACHIEVED"
-                elif current_premium <= pos["sl_premium"]:
-                    should_liquidate = True; exit_reason = "PREMIUM STOP SLIPPAGE CUT"
+                pos = state["position"]
+                current_premium = ce_ltp if pos["side"] == "CE" else pe_ltp
+                if not current_premium:
+                    await asyncio.sleep(0.1)
+                    continue
 
-            # Auto Square-Off Check
-            if current_time >= square_off_time:
-                should_liquidate = True; exit_reason = "EOD AUTO SQUARE-OFF TERMINATION"
+                # Realized execution delta calculation
+                current_pnl_pct = ((current_premium - pos["entry_price"]) / pos["entry_price"]) * 100
+                print(f"🚨 ACTIVE [{pos['side']}] | Entry: {pos['entry_price']:.2f} | Current: {current_premium:.2f} | Delta PnL: {current_pnl_pct:.2f}%        ", end="\r")
 
-            if should_liquidate:
-                await place_order(fyers, pos["side"], current_premium, pos["symbol"], pos["entry_atr"], side_type=-1, reason=exit_reason)
+                # Asymmetric Trailing Profit Safe-locks
+                if current_pnl_pct > pos["highest_pnl"]:
+                    pos["highest_pnl"] = current_pnl_pct
+                    if current_pnl_pct >= 22.5:
+                        pos["sl_premium"] = max(pos["sl_premium"], pos["entry_price"] + (0.3 * pos["entry_atr"]))
+
+                should_liquidate = False
+                exit_reason = ""
+
+                # Standard Volatility Band Trailing Matrix Checks
+                if pos["side"] == "CE":
+                    if metrics['low'] <= pos["sl_spot"]:
+                        should_liquidate = True; exit_reason = "SPOT STOP PIERCED"
+                    elif metrics['high'] >= pos["target_spot"]:
+                        should_liquidate = True; exit_reason = "SPOT TARGET ACHIEVED"
+                    elif current_premium <= pos["sl_premium"]:
+                        should_liquidate = True; exit_reason = "PREMIUM STOP SLIPPAGE CUT"
+                else:
+                    if metrics['high'] >= pos["sl_spot"]:
+                        should_liquidate = True; exit_reason = "SPOT STOP PIERCED"
+                    elif metrics['low'] <= pos["target_spot"]:
+                        should_liquidate = True; exit_reason = "SPOT TARGET ACHIEVED"
+                    elif current_premium <= pos["sl_premium"]:
+                        should_liquidate = True; exit_reason = "PREMIUM STOP SLIPPAGE CUT"
+
+                # Auto Square-Off Check
+                if current_time >= square_off_time:
+                    should_liquidate = True; exit_reason = "EOD AUTO SQUARE-OFF TERMINATION"
+
+                if should_liquidate:
+                    await place_order(fyers, pos["side"], current_premium, pos["symbol"], pos["entry_atr"], side_type=-1, reason=exit_reason)
 
         await asyncio.sleep(0.05)
 
@@ -265,9 +273,16 @@ async def place_order(fyers, side: str, premium: float, symbol: str, current_atr
 
     try:
         data = {
-            "symbol": symbol, "qty": CONFIG["LOT_SIZE"], "type": 2, # Market order
-            "side": side_type, "productType": "INTRADAY", "validity": "DAY",
-            "disclosedQty": 0, "offlineOrder": False, "stopLoss": 0, "takeProfit": 0
+            "symbol": symbol,
+            "qty": CONFIG["LOT_SIZE"],
+            "type": 2,  # 2 = Market order
+            "side": int(side_type),  # Explicitly cast to int (1 for BUY, -1 for SELL)
+            "productType": "INTRADAY",
+            "validity": "DAY",
+            "disclosedQty": 0,
+            "offlineOrder": False,
+            "stopLoss": 0,
+            "takeProfit": 0
         }
         
         order_res = await asyncio.to_thread(fyers.place_order, data=data)
