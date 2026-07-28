@@ -267,71 +267,54 @@ async def execute_strategy(fyers):
         await asyncio.sleep(0.05)
 
 async def place_order(fyers, side: str, premium: float, symbol: str, current_atr: float, side_type=1, reason=""):
-    # 🔒 CAPITAL CIRCUIT SWITCH: Block trades instantly if the account is pinned at its daily safety threshold
+    # CAPITAL CIRCUIT SWITCH: Block trades instantly if the account is pinned at its daily safety threshold
     if side_type == 1 and state["daily_realized_pnl"] <= -CONFIG["MAX_DAILY_LOSS_RUPEES"]:
-        logger.warning(f"🔒 Entry Execution Aborted: Daily Loss Limit cutoff breached.")
+        logger.warning(f"⚠️ Entry Execution Aborted: Daily Loss Limit cutoff breached.")
         return
 
     try:
+        # Map side_type (-1 -> 2 for SELL, 1 -> 1 for BUY)
+        fyers_side = 1 if side_type == 1 else 2
+
         data = {
             "symbol": symbol,
             "qty": CONFIG["LOT_SIZE"],
-            "type": 2,  # 2 = Market order
-            "side": int(side_type),  # Explicitly cast to int (1 for BUY, -1 for SELL)
+            "type": 2,  # Market order
+            "side": fyers_side,
             "productType": "INTRADAY",
+            "limitPrice": 0,
+            "stopPrice": 0,
             "validity": "DAY",
             "disclosedQty": 0,
             "offlineOrder": False,
             "stopLoss": 0,
             "takeProfit": 0
         }
-        
+
         order_res = await asyncio.to_thread(fyers.place_order, data=data)
-        
+
         if order_res and order_res.get("s") == "ok":
             if side_type == 1:
-                # Map out asymmetric stop channels natively using current index volatility
                 state["position"] = {
                     "side": side, "entry_price": premium, "symbol": symbol, "highest_pnl": 0.0,
-                    "entry_atr": current_atr,
-                    "sl_premium": premium * 0.75, # Deep safety backup stop on the premium contract itself (25% buffer)
-                    "sl_spot": state["nifty_spot"] - (0.8 * current_atr) if side == "CE" else state["nifty_spot"] + (0.8 * current_atr),
-                    "target_spot": state["nifty_spot"] + (2.2 * current_atr) if side == "CE" else state["nifty_spot"] - (2.2 * current_atr)
+                    "entry_atr": current_atr, "order_id": order_res.get("id")
                 }
-                logger.info(f"💥 Predatory Entry Filled via FYERS: {symbol} @ {premium}")
-                send_telegram_alert(
-                f"""🚀 *ORDER EXECUTED*
-• *Side:* {side}
-• *Symbol:* `{symbol}`
-• *Entry Price:* ₹{premium}
-• *ATR:* {current_atr}"""
-            )
+                logger.info(f"✅ ENTRY EXECUTED [{side}] | Symbol: {symbol} | Price: {premium} | Reason: {reason}")
             else:
-                pos = state["position"]
-                points = (premium - pos["entry_price"]) if pos["side"] == "CE" else (pos["entry_price"] - premium)
-                trade_rupee_pnl = points * CONFIG["LOT_SIZE"]
+                trade_pnl_pct = ((premium - state["position"]["entry_price"]) / state["position"]["entry_price"]) * 100
+                trade_rupee_pnl = (premium - state["position"]["entry_price"]) * CONFIG["LOT_SIZE"]
                 state["daily_realized_pnl"] += trade_rupee_pnl
-                
-                logger.info(f"🟢 Predatory Liquidation Complete | Reason: {reason} | Trade PnL: ₹{trade_rupee_pnl:.2f}")
-                logger.info(f"💰 Cumulative Session PnL Balance: ₹{state['daily_realized_pnl']:.2f}")
+                logger.info(f"🛑 EXIT EXECUTED [{side}] | Price: {premium} | Trade PnL: ₹{trade_rupee_pnl:.2f} ({trade_pnl_pct:.2f}%) | Reason: {reason}")
                 state["position"] = None
-                send_telegram_alert(
-                f"""🎯 *POSITION CLOSED*
-• *Symbol:* `{symbol}`
-• *Exit Price:* ₹{premium}
-• *Trade P&L:* ₹{trade_rupee_pnl:.2f}
-• *Session P&L:* ₹{state['daily_realized_pnl']:.2f}"""
-            )
-                
+
                 if state["daily_realized_pnl"] <= -CONFIG["MAX_DAILY_LOSS_RUPEES"]:
                     logger.critical("🛑 EMERGENCY SHUTDOWN: Daily risk envelope breached. Shutting down system engines.")
                     state["running"] = False
         else:
             logger.error(f"❌ Execution Engine Mismatch: {order_res.get('message')}")
-            
-    except Exception as e:
-        logger.error(f"Transaction Failure: {e}")
 
+    except Exception as e:
+        logger.error(f"Execution Error: {e}")
 # ==============================================================================
 # 5. LIFE CONCURRENCY RUNNER
 # ==============================================================================
